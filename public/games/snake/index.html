@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Snake Retro Arcade</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background: #06110a;
+      color: #86efac;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+    .header {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .title {
+      font-size: 28px;
+      font-weight: 800;
+      color: #22c55e;
+      letter-spacing: -0.5px;
+    }
+    .stats {
+      display: flex;
+      gap: 12px;
+    }
+    .stat-badge {
+      background: #0d2818;
+      border: 1px solid #166534;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .stat-badge span {
+      font-weight: 700;
+      color: #fff;
+    }
+    #canvas {
+      background: #041c0e;
+      border: 3px solid #15803d;
+      border-radius: 10px;
+      box-shadow: 0 0 20px rgba(34, 197, 94, 0.2);
+      display: block;
+    }
+    .controls {
+      margin-top: 14px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .btn {
+      background: #16a34a;
+      color: #052e16;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #22c55e; }
+    .footer-hint {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #4ade80;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">SNAKE</div>
+    <div class="stats">
+      <div class="stat-badge">SCORE: <span id="score-val">0</span></div>
+      <div class="stat-badge">BEST: <span id="best-val">0</span></div>
+    </div>
+  </div>
+
+  <canvas id="canvas" width="400" height="400"></canvas>
+
+  <div class="controls">
+    <button class="btn" id="restart-btn">Restart Game</button>
+  </div>
+  <div class="footer-hint">Controls: Arrow Keys or W-A-S-D to slither</div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const GRID_SIZE = 20;
+    const TILE_COUNT = 20;
+
+    let snake = [
+      { x: 10, y: 10 },
+      { x: 10, y: 11 },
+      { x: 10, y: 12 }
+    ];
+    let food = { x: 5, y: 5 };
+    let goldenFood = null;
+    let goldenTimer = 0;
+    let dx = 0;
+    let dy = -1;
+    let nextDx = 0;
+    let nextDy = -1;
+    let score = 0;
+    let bestScore = parseInt(localStorage.getItem('snake_best') || '0', 10);
+    let gameOver = false;
+    let gameSpeed = 110;
+    let loopId = null;
+
+    document.getElementById('best-val').textContent = bestScore;
+
+    function spawnFood() {
+      while (true) {
+        food = {
+          x: Math.floor(Math.random() * TILE_COUNT),
+          y: Math.floor(Math.random() * TILE_COUNT)
+        };
+        const collision = snake.some(seg => seg.x === food.x && seg.y === food.y);
+        if (!collision) break;
+      }
+    }
+
+    function spawnGoldenFood() {
+      if (Math.random() < 0.25 && !goldenFood) {
+        goldenFood = {
+          x: Math.floor(Math.random() * TILE_COUNT),
+          y: Math.floor(Math.random() * TILE_COUNT)
+        };
+        goldenTimer = 60;
+      }
+    }
+
+    function update() {
+      if (gameOver) return;
+
+      dx = nextDx;
+      dy = nextDy;
+
+      const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+
+      // Wall collision
+      if (head.x < 0 || head.x >= TILE_COUNT || head.y < 0 || head.y >= TILE_COUNT) {
+        endGame();
+        return;
+      }
+
+      // Self collision
+      if (snake.some(seg => seg.x === head.x && seg.y === head.y)) {
+        endGame();
+        return;
+      }
+
+      snake.unshift(head);
+
+      // Eat standard food
+      if (head.x === food.x && head.y === food.y) {
+        score += 10;
+        document.getElementById('score-val').textContent = score;
+        if (score > bestScore) {
+          bestScore = score;
+          localStorage.setItem('snake_best', bestScore);
+          document.getElementById('best-val').textContent = bestScore;
+        }
+        spawnFood();
+        spawnGoldenFood();
+        if (gameSpeed > 60) gameSpeed -= 1;
+      } else if (goldenFood && head.x === goldenFood.x && head.y === goldenFood.y) {
+        score += 50;
+        document.getElementById('score-val').textContent = score;
+        goldenFood = null;
+      } else {
+        snake.pop();
+      }
+
+      if (goldenFood) {
+        goldenTimer--;
+        if (goldenTimer <= 0) goldenFood = null;
+      }
+    }
+
+    function draw() {
+      ctx.fillStyle = '#041c0e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Subtle grid
+      ctx.strokeStyle = '#072b16';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < TILE_COUNT; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * GRID_SIZE, 0);
+        ctx.lineTo(i * GRID_SIZE, canvas.height);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, i * GRID_SIZE);
+        ctx.lineTo(canvas.width, i * GRID_SIZE);
+        ctx.stroke();
+      }
+
+      // Food
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(
+        food.x * GRID_SIZE + GRID_SIZE / 2,
+        food.y * GRID_SIZE + GRID_SIZE / 2,
+        GRID_SIZE / 2.3, 0, Math.PI * 2
+      );
+      ctx.fill();
+
+      // Golden food
+      if (goldenFood) {
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(
+          goldenFood.x * GRID_SIZE + GRID_SIZE / 2,
+          goldenFood.y * GRID_SIZE + GRID_SIZE / 2,
+          GRID_SIZE / 2, 0, Math.PI * 2
+        );
+        ctx.fill();
+      }
+
+      // Snake body
+      snake.forEach((seg, i) => {
+        if (i === 0) {
+          ctx.fillStyle = '#4ade80';
+        } else {
+          ctx.fillStyle = '#22c55e';
+        }
+        ctx.fillRect(seg.x * GRID_SIZE + 1, seg.y * GRID_SIZE + 1, GRID_SIZE - 2, GRID_SIZE - 2);
+      });
+
+      if (gameOver) {
+        ctx.fillStyle = 'rgba(4, 28, 14, 0.85)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ef4444';
+        ctx.font = 'bold 26px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('CRASHED!', canvas.width / 2, canvas.height / 2 - 8);
+        ctx.fillStyle = '#86efac';
+        ctx.font = '14px system-ui';
+        ctx.fillText('Press Restart to try again', canvas.width / 2, canvas.height / 2 + 20);
+      }
+    }
+
+    function endGame() {
+      gameOver = true;
+      clearInterval(loopId);
+      draw();
+    }
+
+    function resetGame() {
+      snake = [
+        { x: 10, y: 10 },
+        { x: 10, y: 11 },
+        { x: 10, y: 12 }
+      ];
+      dx = 0;
+      dy = -1;
+      nextDx = 0;
+      nextDy = -1;
+      score = 0;
+      document.getElementById('score-val').textContent = score;
+      gameOver = false;
+      gameSpeed = 110;
+      spawnFood();
+      goldenFood = null;
+      clearInterval(loopId);
+      loopId = setInterval(tick, gameSpeed);
+    }
+
+    function tick() {
+      update();
+      draw();
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if ((e.code === 'ArrowUp' || e.code === 'KeyW') && dy !== 1) {
+        e.preventDefault();
+        nextDx = 0; nextDy = -1;
+      } else if ((e.code === 'ArrowDown' || e.code === 'KeyS') && dy !== -1) {
+        e.preventDefault();
+        nextDx = 0; nextDy = 1;
+      } else if ((e.code === 'ArrowLeft' || e.code === 'KeyA') && dx !== 1) {
+        e.preventDefault();
+        nextDx = -1; nextDy = 0;
+      } else if ((e.code === 'ArrowRight' || e.code === 'KeyD') && dx !== -1) {
+        e.preventDefault();
+        nextDx = 1; nextDy = 0;
+      }
+    });
+
+    document.getElementById('restart-btn').addEventListener('click', resetGame);
+
+    resetGame();
+  </script>
+</body>
+</html>

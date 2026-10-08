@@ -1,0 +1,7 @@
+{
+  "name": "Nova Unblocked Games Hub",
+  "description": "Fast, lightweight unblocked game portal with JSON-driven iframe library, panic cloaking, and responsive player.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Pong Arcade</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background: #090d16;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 12px;
+    }
+    #canvas {
+      background: #020617;
+      border: 2px solid #334155;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      display: block;
+    }
+    .hint {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" width="600" height="400"></canvas>
+  <div class="hint">Use <b>W / S</b> or <b>Up / Down Arrow</b> to move paddle</div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    const PADDLE_W = 12;
+    const PADDLE_H = 75;
+
+    let playerY = H / 2 - PADDLE_H / 2;
+    let aiY = H / 2 - PADDLE_H / 2;
+
+    let ballX = W / 2;
+    let ballY = H / 2;
+    let ballSpeedX = 5;
+    let ballSpeedY = 3;
+    const BALL_R = 7;
+
+    let playerScore = 0;
+    let aiScore = 0;
+    const WIN_SCORE = 7;
+    let winner = null;
+
+    const keys = {};
+
+    window.addEventListener('keydown', (e) => {
+      keys[e.code] = true;
+      if (winner && e.code === 'Enter') {
+        playerScore = 0;
+        aiScore = 0;
+        winner = null;
+        resetBall();
+      }
+    });
+    window.addEventListener('keyup', (e) => {
+      keys[e.code] = false;
+    });
+
+    // Mouse / Touch paddle tracking
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseY = e.clientY - rect.top;
+      playerY = Math.max(0, Math.min(H - PADDLE_H, mouseY - PADDLE_H / 2));
+    });
+
+    function resetBall() {
+      ballX = W / 2;
+      ballY = H / 2;
+      ballSpeedX = (Math.random() > 0.5 ? 1 : -1) * 5;
+      ballSpeedY = (Math.random() * 4 - 2);
+    }
+
+    function update() {
+      if (winner) return;
+
+      // Player move
+      if (keys['KeyW'] || keys['ArrowUp']) playerY -= 7;
+      if (keys['KeyS'] || keys['ArrowDown']) playerY += 7;
+      playerY = Math.max(0, Math.min(H - PADDLE_H, playerY));
+
+      // AI move
+      const aiCenter = aiY + PADDLE_H / 2;
+      if (aiCenter < ballY - 15) aiY += 4.5;
+      else if (aiCenter > ballY + 15) aiY -= 4.5;
+      aiY = Math.max(0, Math.min(H - PADDLE_H, aiY));
+
+      // Ball move
+      ballX += ballSpeedX;
+      ballY += ballSpeedY;
+
+      // Top / bottom bounce
+      if (ballY - BALL_R < 0 || ballY + BALL_R > H) {
+        ballSpeedY = -ballSpeedY;
+      }
+
+      // Left paddle collision
+      if (ballX - BALL_R < 25 + PADDLE_W && ballX + BALL_R > 25) {
+        if (ballY > playerY && ballY < playerY + PADDLE_H) {
+          const delta = ballY - (playerY + PADDLE_H / 2);
+          ballSpeedX = Math.abs(ballSpeedX) * 1.05;
+          ballSpeedY = delta * 0.22;
+          ballX = 25 + PADDLE_W + BALL_R;
+        }
+      }
+
+      // Right paddle collision
+      if (ballX + BALL_R > W - 25 - PADDLE_W && ballX - BALL_R < W - 25) {
+        if (ballY > aiY && ballY < aiY + PADDLE_H) {
+          const delta = ballY - (aiY + PADDLE_H / 2);
+          ballSpeedX = -Math.abs(ballSpeedX) * 1.05;
+          ballSpeedY = delta * 0.22;
+          ballX = W - 25 - PADDLE_W - BALL_R;
+        }
+      }
+
+      // Scoring
+      if (ballX < 0) {
+        aiScore++;
+        if (aiScore >= WIN_SCORE) winner = 'CPU';
+        else resetBall();
+      } else if (ballX > W) {
+        playerScore++;
+        if (playerScore >= WIN_SCORE) winner = 'PLAYER';
+        else resetBall();
+      }
+    }
+
+    function draw() {
+      ctx.fillStyle = '#020617';
+      ctx.fillRect(0, 0, W, H);
+
+      // Center dashed net
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([10, 10]);
+      ctx.beginPath();
+      ctx.moveTo(W / 2, 0);
+      ctx.lineTo(W / 2, H);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Scores
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 42px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(playerScore, W / 2 - 60, 60);
+      ctx.fillText(aiScore, W / 2 + 60, 60);
+
+      // Player paddle
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(25, playerY, PADDLE_W, PADDLE_H);
+
+      // AI paddle
+      ctx.fillStyle = '#f43f5e';
+      ctx.fillRect(W - 25 - PADDLE_W, aiY, PADDLE_W, PADDLE_H);
+
+      // Ball
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.arc(ballX, ballY, BALL_R, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Win message
+      if (winner) {
+        ctx.fillStyle = 'rgba(2, 6, 23, 0.85)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = winner === 'PLAYER' ? '#38bdf8' : '#f43f5e';
+        ctx.font = 'bold 32px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText(winner === 'PLAYER' ? 'YOU WIN!' : 'CPU WINS!', W / 2, H / 2 - 15);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '15px system-ui';
+        ctx.fillText('Press ENTER to play again', W / 2, H / 2 + 25);
+      }
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
